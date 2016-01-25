@@ -1,0 +1,34 @@
+{
+    "name": "NDC API",
+    "api_id": "1",
+    "org_id": "default",
+    "definition": {
+        "location": "",
+        "key": ""
+    },
+    "use_keyless": true,
+    "auth": {
+        "auth_header_name": ""
+    },
+    "version_data": {
+        "not_versioned": true,
+        "versions": {
+            "Default": {
+                "name": "Default",
+                "expires": "3000-01-02 15:04",
+                "use_extended_paths": true,
+                "extended_paths": {
+                    "ignored": [],
+                    "white_list": [],
+                    "black_list": []
+                }
+            }
+        }
+    },
+    "proxy": {
+        "listen_path": "/ndc/",
+        "target_url": "http://127.0.0.1:3000",
+        "strip_listen_path": true
+    },
+    "enable_batch_request_support": true
+}
