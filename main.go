@@ -579,6 +579,8 @@ func loadApps(APISpecs *[]*APISpec, Muxer *mux.Router) {
 					CreateMiddleware(&RedisCacheMiddleware{TykMiddleware: tykMiddleware, CacheStore: CacheStore}, tykMiddleware),
 					CreateMiddleware(&VirtualEndpoint{TykMiddleware: tykMiddleware}, tykMiddleware),
 					CreateMiddleware(&URLRewriteMiddleware{TykMiddleware: tykMiddleware}, tykMiddleware),
+
+					CreateMiddleware(&NDCMiddleware{TykMiddleware: tykMiddleware, CacheStore: CacheStore}, tykMiddleware),
 				}
 
 				for _, obj := range mwPreFuncs {
