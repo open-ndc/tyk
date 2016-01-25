@@ -5,7 +5,7 @@ import (
 )
 
 func TestNDCMiddleware( t *testing.T ) {
-  log.Debug( "FIRST TEST!" )
+  t.Log( "FIRST TEST!" )
   
   
 }
