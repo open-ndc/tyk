@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"fmt"
+ "bytes"
 )
 
 // NDCMiddleware is a caching middleware that will pull data from Redis instead of the upstream proxy
@@ -21,6 +22,7 @@ type NDCMiddlewareConfig struct {
 
 // New lets you do any initialisations for the object can be done here
 func (m *NDCMiddleware) New() {
+        fmt.Println( "INITIALIZE! ")
 	m.sh = SuccessHandler{m.TykMiddleware}
 }
 
@@ -44,5 +46,14 @@ func (m NDCMiddleware) CreateCheckSum(req *http.Request, keyName string) string 
 // ProcessRequest will run any checks on the request on the way through the system, return an error to have the chain fail
 func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, configuration interface{}) (error, int) {
 	fmt.Println( "*** NDCMiddleware:ProcessRequest")
+
+	var copiedRequest *http.Request = CopyHttpRequest( r )
+	// copiedRequest = CopyHttpRequest(r)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom( copiedRequest.Body )
+
+	fmt.Println( buf.String() )
+
 	return nil, 200
 }
