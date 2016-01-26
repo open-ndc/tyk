@@ -5,7 +5,6 @@ import (
  	"bytes"
  	"encoding/xml"
 	"time"
-	"math/rand"
 	"github.com/influxdb/influxdb/client/v2"
 )
 
@@ -24,6 +23,12 @@ type NDCMiddleware struct {
 }
 
 type NDCMiddlewareConfig struct {
+}
+
+type NDCMiddlewareRecord struct {
+	method	string
+	remoteAddress	string
+	elapsedTime	float64
 }
 
 // Custom structs (these should be in a separate place later):
@@ -58,28 +63,24 @@ func (m *NDCMiddleware) New() {
 
 // Sample RecordHit()
 
-func (m *NDCMiddleware) RecordHit( r *AirShoppingRQType ) {
-
+func (m *NDCMiddleware) RecordHit( Record *NDCMiddlewareRecord ) {
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database: config.NDCMiddlewareConfig.InfluxDbName,
 		Precision: "s",
 	})
 
-	tags := map[string]string{"ndc_method": "AirShoppingRQ"}
+	tags := map[string]string{"ndc_method": Record.method}
 
   fields := map[string]interface{}{
-	    "a":	rand.Float32(),
-			"b":	rand.Float32(),
+	    "remoteAddress": Record.remoteAddress,
+			"elapsedTime":	Record.elapsedTime,
   }
 
-  pt, _ := client.NewPoint( "ndc_requests", tags, fields, time.Now())
+  pt, _ := client.NewPoint( "ndc", tags, fields, time.Now())
 
   bp.AddPoint(pt)
 
-  // Write the batch
   m.db.Write(bp)
-
-	log.Debug( "RecordHit" )
 }
 // GetConfig retrieves the configuration from the API config - we user mapstructure for this for simplicity
 
@@ -88,7 +89,7 @@ func (m *NDCMiddleware) GetConfig() (interface{}, error) {
 	return thisModuleConfig, nil
 }
 
-func (m *NDCMiddleware) ComputeRequestTime( t1 time.Time, t2 time.Time ) float64 {
+func ComputeRequestTime( t1 time.Time, t2 time.Time ) float64 {
 	return float64(t2.UnixNano()-t1.UnixNano()) * 0.000001
 }
 // ProcessRequest will run any checks on the request on the way through the system, return an error to have the chain fail
@@ -118,26 +119,25 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	var AirShoppingRQ AirShoppingRQType
 	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
 
+	var startTime = time.Now()
+
 	log.Info( "doing ServeHTTPWithCache!")
 	reqVal := new(http.Response)
 	reqVal = m.sh.ServeHTTPWithCache(w, r)
 
 	log.Info( "ServeHTTPWithCache finished?")
 
-	var startTime := time.Now()
-
 	var wireFormatReq bytes.Buffer
 	reqVal.Write(&wireFormatReq)
 
-	var endTime := time.Now()
+	var endTime = time.Now()
 
-	var elapsedTime = ComputeRequestTime( startTime, endTime )
+	var Record NDCMiddlewareRecord
+	Record.method = "AirShoppingRQ"
+	Record.remoteAddress = r.RemoteAddr
+	Record.elapsedTime = ComputeRequestTime( startTime, endTime )
 
-	log.Info( "ServeHTTPWithCache / writing wireFormatReq")
-	// log.Info( string( wireFormatReq) )
-	// go m.CacheStore.SetKey(thisKey, wireFormatReq.String(), cacheTTL)
-
-	go m.RecordHit( &AirShoppingRQ, elapsedTime )
+	go m.RecordHit( &Record )
 
 	return nil, 666
 
