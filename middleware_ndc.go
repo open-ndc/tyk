@@ -2,9 +2,9 @@ package main
 
 import (
 	"net/http"
-	"fmt"
  	"bytes"
  	"encoding/xml"
+	// "github.com/influxdb/influxdb/client/v2"
 )
 
 // NDCMiddleware is a middleware to perform analytics based on the request body / message
@@ -41,8 +41,7 @@ type locationType struct {
 // New lets you do any initialisations for the object can be done here
 
 func (m *NDCMiddleware) New() {
-	fmt.Println( "*** NDCMiddleware init" )
-	fmt.Println( "*** NDCMiddleware, acceptedContentType:" + acceptedContentType)
+	log.Info( "NDCMiddleware init")
 	m.sh = SuccessHandler{m.TykMiddleware}
 }
 
@@ -50,8 +49,7 @@ func (m *NDCMiddleware) New() {
 // Sample RecordHit()
 
 func RecordHit( r *AirShoppingRQType ) {
-	fmt.Println( "RecordHit ")
-	fmt.Println( r )
+	log.Debug( "RecordHit" )
 }
 // GetConfig retrieves the configuration from the API config - we user mapstructure for this for simplicity
 
@@ -63,8 +61,7 @@ func (m *NDCMiddleware) GetConfig() (interface{}, error) {
 // ProcessRequest will run any checks on the request on the way through the system, return an error to have the chain fail
 
 func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, configuration interface{}) (error, int) {
-	fmt.Println( "*** NDCMiddleware:ProcessRequest")
-
+	log.Debug( "NDCMiddleware ProcessRequest")
 	var copiedRequest *http.Request = CopyHttpRequest( r )
 
 	buf := new(bytes.Buffer)
@@ -78,11 +75,11 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	var contentType string = r.Header[ "Content-Type" ][0]
 
 	if( acceptedContentType != contentType ) {
-		fmt.Println( "Not tracking this request")
+		log.Debug( "Not tracking this request" )
 		return nil, 200
 	}
 
-	fmt.Println( "Tracking this request")
+	log.Debug( "Tracking this request")
 
 	var AirShoppingRQ AirShoppingRQType
 	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
