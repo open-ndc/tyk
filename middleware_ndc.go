@@ -72,7 +72,7 @@ func (m *NDCMiddleware) RecordHit( r *AirShoppingRQType ) {
 			"b":	rand.Float32(),
   }
 
-  pt, _ := client.NewPoint( "ndc", tags, fields, time.Now())
+  pt, _ := client.NewPoint( "ndc_requests", tags, fields, time.Now())
 
   bp.AddPoint(pt)
 
@@ -88,10 +88,14 @@ func (m *NDCMiddleware) GetConfig() (interface{}, error) {
 	return thisModuleConfig, nil
 }
 
+func (m *NDCMiddleware) ComputeRequestTime( t1 time.Time, t2 time.Time ) float64 {
+	return float64(t2.UnixNano()-t1.UnixNano()) * 0.000001
+}
 // ProcessRequest will run any checks on the request on the way through the system, return an error to have the chain fail
 
 func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, configuration interface{}) (error, int) {
 	log.Debug( "NDCMiddleware ProcessRequest")
+
 	var copiedRequest *http.Request = CopyHttpRequest( r )
 
 	buf := new(bytes.Buffer)
@@ -114,9 +118,28 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	var AirShoppingRQ AirShoppingRQType
 	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
 
-	go m.RecordHit( &AirShoppingRQ )
+	log.Info( "doing ServeHTTPWithCache!")
+	reqVal := new(http.Response)
+	reqVal = m.sh.ServeHTTPWithCache(w, r)
 
-	return nil, 200
+	log.Info( "ServeHTTPWithCache finished?")
+
+	var startTime := time.Now()
+
+	var wireFormatReq bytes.Buffer
+	reqVal.Write(&wireFormatReq)
+
+	var endTime := time.Now()
+
+	var elapsedTime = ComputeRequestTime( startTime, endTime )
+
+	log.Info( "ServeHTTPWithCache / writing wireFormatReq")
+	// log.Info( string( wireFormatReq) )
+	// go m.CacheStore.SetKey(thisKey, wireFormatReq.String(), cacheTTL)
+
+	go m.RecordHit( &AirShoppingRQ, elapsedTime )
+
+	return nil, 666
 
 
 }
