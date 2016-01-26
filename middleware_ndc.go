@@ -46,6 +46,13 @@ func (m *NDCMiddleware) New() {
 	m.sh = SuccessHandler{m.TykMiddleware}
 }
 
+
+// Sample RecordHit()
+
+func RecordHit( r *AirShoppingRQType ) {
+	fmt.Println( "RecordHit ")
+	fmt.Println( r )
+}
 // GetConfig retrieves the configuration from the API config - we user mapstructure for this for simplicity
 
 func (m *NDCMiddleware) GetConfig() (interface{}, error) {
@@ -80,7 +87,7 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	var AirShoppingRQ AirShoppingRQType
 	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
 
-	fmt.Println( AirShoppingRQ )
+	go RecordHit( &AirShoppingRQ )
 
 	return nil, 200
 
