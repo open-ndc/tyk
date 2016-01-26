@@ -4,7 +4,9 @@ import (
 	"net/http"
  	"bytes"
  	"encoding/xml"
-	// "github.com/influxdb/influxdb/client/v2"
+	"time"
+	"math/rand"
+	"github.com/influxdb/influxdb/client/v2"
 )
 
 // NDCMiddleware is a middleware to perform analytics based on the request body / message
@@ -18,6 +20,7 @@ type NDCMiddleware struct {
 	*TykMiddleware
 	CacheStore StorageHandler
 	sh         SuccessHandler
+	db         client.Client
 }
 
 type NDCMiddlewareConfig struct {
@@ -42,19 +45,46 @@ type locationType struct {
 
 func (m *NDCMiddleware) New() {
 	log.Info( "NDCMiddleware init")
+
+	m.db, _ = client.NewHTTPClient(client.HTTPConfig{
+			 Addr: "http://localhost:8086",
+			 Username: config.NDCMiddlewareConfig.InfluxDbUsername,
+			 Password: config.NDCMiddlewareConfig.InfluxDbPassword,
+	 })
+
 	m.sh = SuccessHandler{m.TykMiddleware}
 }
 
 
 // Sample RecordHit()
 
-func RecordHit( r *AirShoppingRQType ) {
+func (m *NDCMiddleware) RecordHit( r *AirShoppingRQType ) {
+
+	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
+		Database: config.NDCMiddlewareConfig.InfluxDbName,
+		Precision: "s",
+	})
+
+	tags := map[string]string{"ndc_method": "AirShoppingRQ"}
+
+  fields := map[string]interface{}{
+	    "a":	rand.Float32(),
+			"b":	rand.Float32(),
+  }
+
+  pt, _ := client.NewPoint( "ndc", tags, fields, time.Now())
+
+  bp.AddPoint(pt)
+
+  // Write the batch
+  m.db.Write(bp)
+
 	log.Debug( "RecordHit" )
 }
 // GetConfig retrieves the configuration from the API config - we user mapstructure for this for simplicity
 
 func (m *NDCMiddleware) GetConfig() (interface{}, error) {
-	var thisModuleConfig NDCMiddlewareConfig
+	var thisModuleConfig NDCMiddlewareConfig // config.NDCMiddlewareConfig?
 	return thisModuleConfig, nil
 }
 
@@ -84,7 +114,7 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	var AirShoppingRQ AirShoppingRQType
 	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
 
-	go RecordHit( &AirShoppingRQ )
+	go m.RecordHit( &AirShoppingRQ )
 
 	return nil, 200
 
