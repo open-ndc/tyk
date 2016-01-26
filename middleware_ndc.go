@@ -3,7 +3,8 @@ package main
 import (
 	"net/http"
 	"fmt"
- "bytes"
+ 	"bytes"
+ 	"encoding/xml"
 )
 
 // NDCMiddleware is a middleware to perform analytics based on the request body / message
@@ -58,9 +59,11 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	fmt.Println( "*** NDCMiddleware:ProcessRequest")
 
 	var copiedRequest *http.Request = CopyHttpRequest( r )
-	
+
 	buf := new(bytes.Buffer)
 	buf.ReadFrom( copiedRequest.Body )
+
+	// _, err = buf.WriteTo(w)
 
 	// fmt.Println( buf.String() )
 
@@ -73,6 +76,11 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	}
 
 	fmt.Println( "Tracking this request")
+
+	var AirShoppingRQ AirShoppingRQType
+	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
+
+	fmt.Println( AirShoppingRQ )
 
 	return nil, 200
 
