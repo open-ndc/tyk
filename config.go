@@ -50,6 +50,13 @@ type Config struct {
 		EnableDetailedRecording bool     `json:"enable_detailed_recording"`
 		ignoredIPsCompiled      map[string]bool
 	} `json:"analytics_config"`
+	EnableNDCMiddleware bool `json:"enable_ndc_middleware"`
+	NDCMiddlewareConfig struct {
+		InfluxURL	string	`json:"influx_url"`
+		InfluxDbName	string	`json:"influx_db_name"`
+		InfluxDbUsername	string	`json:"influx_db_username"`
+		InfluxDbPassword	string	`json:"influx_db_password"`
+	} `json:"ndc_middleware_config"`
 	HealthCheck struct {
 		EnableHealthChecks      bool  `json:"enable_health_checks"`
 		HealthCheckValueTimeout int64 `json:"health_check_value_timeouts"`
