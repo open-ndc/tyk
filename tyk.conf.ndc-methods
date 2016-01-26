@@ -26,7 +26,7 @@
         "optimisation_max_active": 0,
         "enable_cluster": false
     },
-    "enable_analytics": true,
+    "enable_analytics": false,
     "analytics_config": {
     "type": "mongo",
     "csv_dir": "/tmp",
@@ -35,6 +35,13 @@
     "mongo_collection": "tyk_analytics",
     "purge_delay": 5,
     "ignored_ips": []
+    },
+    "enable_ndc_middleware": true,
+    "ndc_middleware_config": {
+    "influx_url": "http://localhost:8086",
+    "influx_db_name": "database",
+    "influx_db_username": "username",
+    "influx_db_password": "12345"
     },
     "health_check": {
         "enable_health_checks": true,
