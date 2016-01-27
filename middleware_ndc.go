@@ -4,6 +4,7 @@ import (
 	"net/http"
  	"bytes"
  	"encoding/xml"
+	"reflect"
 	"time"
 	"errors"
 	"github.com/influxdb/influxdb/client/v2"
@@ -71,10 +72,29 @@ func (m *NDCMiddleware) ParseNDCMessage( RequestBody *[]byte ) ( NDCGenericMessa
 	track := trackMethods[ method ]
 
 	if supported && track != nil {
+
 		switch method {
 			case "AirShoppingRQ":
 				var currentMessage AirShoppingRQType
+
 				xml.Unmarshal( *RequestBody, &currentMessage)
+
+				log.Info( "AirShoppingRQ, what should we track?")
+				log.Info( track )
+
+				log.Info( "reflect")
+				val := reflect.ValueOf(currentMessage)
+				// val := reflect.TypeOf( currentMessage )
+				log.Info( val.FieldByName ("PointOfSale.Location.CountryCode"))
+
+				log.Info( val.MapKeys() )
+
+
+				// fields := currentMessage.(map[string]interface{})
+
+				// log.Info( "message (NDCMessage) fields")
+				// log.Info( fields )
+
 
 				message = currentMessage
 		}
