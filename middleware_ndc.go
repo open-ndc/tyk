@@ -5,6 +5,7 @@ import (
  	"bytes"
  	"encoding/xml"
 	"time"
+	"errors"
 	"github.com/influxdb/influxdb/client/v2"
 )
 
@@ -14,6 +15,10 @@ const (
 	// TODO: support a range of content types
 	acceptedContentType string = "application/xml"
 )
+
+var NDCSupportedMethods = map[string] struct{} {
+	"AirShoppingRQ": {},
+}
 
 type NDCMiddleware struct {
 	*TykMiddleware
@@ -32,6 +37,45 @@ type NDCMiddlewareRecord struct {
 }
 
 // Custom structs (these should be in a separate place later):
+
+type NDCGenericMessage struct {
+  XMLName xml.Name
+	_method string
+}
+
+type NDCMessage interface {}
+
+func ParseNDCMessage( RequestBody *[]byte ) ( NDCGenericMessage, NDCMessage, error ) {
+
+	log.Info( "ParseNDCMessage")
+
+	var genericMessage NDCGenericMessage
+
+	var message NDCMessage
+
+	xml.Unmarshal( *RequestBody, &genericMessage )
+
+	var method = genericMessage.XMLName.Local
+
+	_, supported := NDCSupportedMethods[ method ]
+
+	if supported  {
+		switch method {
+			case "AirShoppingRQ":
+				var currentMessage AirShoppingRQType
+				xml.Unmarshal( *RequestBody, &currentMessage)
+
+				message = currentMessage
+		}
+
+		genericMessage._method = method
+
+		return genericMessage, message, nil
+	}
+
+	log.Info( "NDCMessage not supported")
+	return genericMessage, nil, errors.New( "NDCMessage not suported")
+}
 
 type AirShoppingRQType struct {
 	PointOfSale pointOfSaleType
@@ -64,6 +108,9 @@ func (m *NDCMiddleware) New() {
 // Sample RecordHit()
 
 func (m *NDCMiddleware) RecordHit( Record *NDCMiddlewareRecord ) {
+
+	log.Info( Record )
+
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database: config.NDCMiddlewareConfig.InfluxDbName,
 		Precision: "s",
@@ -89,9 +136,17 @@ func (m *NDCMiddleware) GetConfig() (interface{}, error) {
 	return thisModuleConfig, nil
 }
 
+// Extra functions
+
 func ComputeRequestTime( t1 time.Time, t2 time.Time ) float64 {
 	return float64(t2.UnixNano()-t1.UnixNano()) * 0.000001
 }
+
+func ValidNDCMessage( RequestBody *[]byte ) ( NDCMessage ) {
+	var message NDCMessage
+  return message
+}
+
 // ProcessRequest will run any checks on the request on the way through the system, return an error to have the chain fail
 
 func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, configuration interface{}) (error, int) {
@@ -102,30 +157,34 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	buf := new(bytes.Buffer)
 	buf.ReadFrom( copiedRequest.Body )
 
-	// _, err = buf.WriteTo(w)
-
-	// fmt.Println( buf.String() )
-
-	// TODO: handle nil contentType
-	var contentType string = r.Header[ "Content-Type" ][0]
-
-	if( acceptedContentType != contentType ) {
-		log.Debug( "Not tracking this request" )
-		return nil, 200
+	if r.Header["Content-Type"] == nil {
+		log.Info( "content type nil")
+		return nil, 666
+	} else {
+		var contentType string = r.Header[ "Content-Type" ][0]
+		if( acceptedContentType != contentType ) {
+			log.Info( "Ignoring, content type mismatch" )
+			return nil, 666
+		}
 	}
 
-	log.Debug( "Tracking this request")
+	var body = buf.Bytes()
+	var message NDCMessage
 
-	var AirShoppingRQ AirShoppingRQType
-	xml.Unmarshal( buf.Bytes(), &AirShoppingRQ )
+	messageInfo, message, err := ParseNDCMessage(&body)
+
+	if( err != nil ) {
+		log.Info( "Ignoring, invalid message or not supported method?")
+		return nil, 666
+	}
+
+	log.Info( "Following request, message is: ")
+	log.Info( message )
 
 	var startTime = time.Now()
 
-	log.Info( "doing ServeHTTPWithCache!")
 	reqVal := new(http.Response)
 	reqVal = m.sh.ServeHTTPWithCache(w, r)
-
-	log.Info( "ServeHTTPWithCache finished?")
 
 	var wireFormatReq bytes.Buffer
 	reqVal.Write(&wireFormatReq)
@@ -133,7 +192,7 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 	var endTime = time.Now()
 
 	var Record NDCMiddlewareRecord
-	Record.method = "AirShoppingRQ"
+	Record.method = messageInfo._method
 	Record.remoteAddress = r.RemoteAddr
 	Record.elapsedTime = ComputeRequestTime( startTime, endTime )
 
