@@ -7,6 +7,7 @@ import (
 	"time"
 	"errors"
 	"github.com/influxdb/influxdb/client/v2"
+	// "github.com/mitchellh/mapstructure"
 )
 
 // NDCMiddleware is a middleware to perform analytics based on the request body / message
@@ -18,6 +19,7 @@ const (
 
 var NDCSupportedMethods = map[string] struct{} {
 	"AirShoppingRQ": {},
+	"DontTrackRQ": {},
 }
 
 type NDCMiddleware struct {
@@ -25,9 +27,15 @@ type NDCMiddleware struct {
 	CacheStore StorageHandler
 	sh         SuccessHandler
 	db         client.Client
+	ApiConfig        interface{}
 }
 
 type NDCMiddlewareConfig struct {
+}
+
+type NDCMiddlewareAPIConfig struct {
+	TrackFields string `mapstructure:"track_fields" bson:"track_fields" json:"track_fields"`
+	// TrackFields map[string] `mapstructure:""`
 }
 
 type NDCMiddlewareRecord struct {
@@ -45,7 +53,7 @@ type NDCGenericMessage struct {
 
 type NDCMessage interface {}
 
-func ParseNDCMessage( RequestBody *[]byte ) ( NDCGenericMessage, NDCMessage, error ) {
+func (m *NDCMiddleware) ParseNDCMessage( RequestBody *[]byte ) ( NDCGenericMessage, NDCMessage, error ) {
 
 	log.Info( "ParseNDCMessage")
 
@@ -57,9 +65,12 @@ func ParseNDCMessage( RequestBody *[]byte ) ( NDCGenericMessage, NDCMessage, err
 
 	var method = genericMessage.XMLName.Local
 
-	_, supported := NDCSupportedMethods[ method ]
+	_, supported := NDCSupportedMethods[ method ]						// is the NDC method supported by the middlware?
 
-	if supported  {
+	trackMethods,_ := m.ApiConfig.(map[string]interface{})	// should we track this method on the curent API?
+	track := trackMethods[ method ]
+
+	if supported && track != nil {
 		switch method {
 			case "AirShoppingRQ":
 				var currentMessage AirShoppingRQType
@@ -73,8 +84,8 @@ func ParseNDCMessage( RequestBody *[]byte ) ( NDCGenericMessage, NDCMessage, err
 		return genericMessage, message, nil
 	}
 
-	log.Info( "NDCMessage not supported")
-	return genericMessage, nil, errors.New( "NDCMessage not suported")
+	log.Info( "NDCMessage not supported and/or shouldn't  be tracked")
+	return genericMessage, nil, errors.New( "NDCMessage not supported and/or shouldn't  be tracked")
 }
 
 type AirShoppingRQType struct {
@@ -109,7 +120,7 @@ func (m *NDCMiddleware) New() {
 
 func (m *NDCMiddleware) RecordHit( Record *NDCMiddlewareRecord ) {
 
-	log.Info( Record )
+	log.Info( "RecordHit()", Record )
 
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
 		Database: config.NDCMiddlewareConfig.InfluxDbName,
@@ -133,6 +144,9 @@ func (m *NDCMiddleware) RecordHit( Record *NDCMiddlewareRecord ) {
 
 func (m *NDCMiddleware) GetConfig() (interface{}, error) {
 	var thisModuleConfig NDCMiddlewareConfig // config.NDCMiddlewareConfig?
+
+	m.ApiConfig = m.TykMiddleware.Spec.APIDefinition.RawData["track_fields"]
+
 	return thisModuleConfig, nil
 }
 
@@ -164,18 +178,18 @@ func (m *NDCMiddleware) ProcessRequest(w http.ResponseWriter, r *http.Request, c
 		var contentType string = r.Header[ "Content-Type" ][0]
 		if( acceptedContentType != contentType ) {
 			log.Info( "Ignoring, content type mismatch" )
-			return nil, 666
+			return nil, 200
 		}
 	}
 
 	var body = buf.Bytes()
 	var message NDCMessage
 
-	messageInfo, message, err := ParseNDCMessage(&body)
+	messageInfo, message, err := m.ParseNDCMessage(&body)
 
 	if( err != nil ) {
 		log.Info( "Ignoring, invalid message or not supported method?")
-		return nil, 666
+		return nil, 200
 	}
 
 	log.Info( "Following request, message is: ")
