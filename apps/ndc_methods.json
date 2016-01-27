@@ -10,6 +10,10 @@
     "auth": {
         "auth_header_name": ""
     },
+    "track_fields": {
+      "AirShoppingRQ": [ "PointOfSale.Location.CountryCode",
+                         "PointOfSale.Location.CityCode" ]
+    },
     "version_data": {
         "not_versioned": true,
         "versions": {
